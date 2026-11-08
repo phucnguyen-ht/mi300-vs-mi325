@@ -66,17 +66,17 @@ Phần chênh 12.1 ms của step gồm 84 % là kernel GPU chậm hơn, 16 % là
 
 ## Bandwidth: HBM và kernel MoE
 
-| máy | HBM spec | BabelStream đo được (TB/s) | BabelStream / spec | kernel MoE, e2e (TB/s) | kernel MoE, op-test interleave (TB/s) | kernel MoE, op-test stress (TB/s) |
-|---|---|---|---|---|---|---|
-| **MI300X** (HBM3) | **5.3 TB/s** | **4.23** | 80 % | **2.23** = 53 % BabelStream / 42 % spec | **2.44** = 58 % / 46 % | **2.53** = 60 % / 48 % |
-| **MI325X** (HBM3E) | **6.0 TB/s** | **4.7** | 78 % | **3.15** = 67 % BabelStream / 53 % spec | **3.24** = 69 % / 54 % | **3.10** = 66 % / 52 % |
-| MI325X / MI300X | ×1.13 | ×1.11 | | **×1.41** | ×1.33 | ×1.23 |
+| máy | HBM spec | BabelStream đo được (TB/s) | BabelStream / spec | kernel MoE, op-test interleave (TB/s) | kernel MoE, op-test stress (TB/s) |
+|---|---|---|---|---|---|
+| **MI300X** (HBM3) | **5.3 TB/s** | **4.23** | 80 % | **2.44** = 58 % BabelStream / 46 % spec | **2.53** = 60 % / 48 % |
+| **MI325X** (HBM3E) | **6.0 TB/s** | **4.7** | 78 % | **3.24** = 69 % BabelStream / 54 % spec | **3.10** = 66 % / 52 % |
+| MI325X / MI300X | ×1.13 | ×1.11 | | ×1.33 | ×1.23 |
 
 - **BabelStream:** `hip-stream`, kiểu double, mảng 2 GiB, 100 lần mỗi kernel, đo trên cả 8 GPU của mỗi node khi node trống.
 - **Kernel MoE:** ở c512 với input dump (routing thật), trọng số thật. Bandwidth = số byte một lời gọi ÷ latency một lời gọi.
   - Số byte một lời gọi là **930 MB** (stage1 + stage2 + sorting + quant), đo bằng `rocprofv3` FETCH_SIZE + WRITE_SIZE. Đây là lượng L2 đọc từ fabric (HBM hoặc MALL) cộng lượng ghi, và như nhau trên hai máy.
-  - Latency: e2e lấy từ trace (418 / 295 µs), op-test lấy từ bảng ở mục Kết quả.
-- **Đọc bảng:** kernel MoE chỉ khai thác 42–48 % HBM spec trên MI300X, so với 52–54 % trên MI325X. Peak HBM chỉ chênh ×1.11–1.13, nhưng bandwidth thực tế của kernel chênh ×1.23–1.41. Như vậy kernel không bị giới hạn bởi peak HBM; xem thí nghiệm clock ở dưới (sclk là yếu tố chính).
+  - Latency lấy từ bảng ở mục Kết quả (dump c512).
+- **Đọc bảng:** kernel MoE chỉ khai thác 46–48 % HBM spec trên MI300X, so với 52–54 % trên MI325X. Peak HBM chỉ chênh ×1.11–1.13, nhưng bandwidth thực tế của kernel chênh ×1.23–1.33. Như vậy kernel không bị giới hạn bởi peak HBM; xem thí nghiệm clock ở dưới (sclk là yếu tố chính).
 
 ## Thuật ngữ
 
