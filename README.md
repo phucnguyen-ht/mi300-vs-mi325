@@ -343,7 +343,7 @@ Ghi chú:
 - **Cho MI325X cùng mức trần với MI300X (sclk ≤ 1950, HBM ≤ 1300) thì gap vẫn còn ×1.13–1.27.** Lý do là MI325X còn dư power (cap 1000 W) nên vẫn chạy khoảng 1.9 GHz. MI300X thì chạy MoE ở khoảng 1.0–1.3 GHz ngay cả khi chưa chạm 750 W.
 - **Lưu ý về sclk trung bình.** Trên MI300X, sclk trung bình có thể đánh lừa. Ở c16 interleave, trung bình là 1.64 GHz nhưng latency MoE bằng lúc stress ở 1.32 GHz; các đoạn GEMM/idle kéo trung bình lên.
 
-### Sweep đủ conc c1–c1024 (cập nhật 2026-11-09 ~06:40 KST, đang bổ sung)
+### Sweep đủ conc c1–c1024 (cập nhật 2026-11-09 ~06:30 KST, đang bổ sung)
 
 **Cách làm**
 - Chạy lại toàn bộ bộ điểm của mục [Kết quả](#kết-quả-2-bảng--3-bảng-con): uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật, đo events 20 s mỗi điểm.
@@ -493,7 +493,7 @@ Ghi chú:
 - [x] Tái hiện e2e từ op-test, bước 3: Mori thật giữa các GPU (2 nhóm EP4, all-to-all dispatch/combine), đủ 8 GPU.
   - Ở dump c512: MI300X 405.4 µs @ 1115 MHz, 656 W, 83 °C; MI325X 295.9 µs @ 1837 MHz, 1000 W. Gap **×1.37**, e2e là ×1.41.
   - Clock, power và nhiệt độ của MI300X trùng với e2e (1.10 GHz, 651 W, 85 °C).
-- [x] Sweep đủ conc với giới hạn clock (uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật): MI300X sclk ≤ 1100; MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai. Bảng ở mục [Sweep đủ conc](#sweep-đủ-conc-c1c1024-cập-nhật-2026-11-09-0640-kst-đang-bổ-sung).
+- [x] Sweep đủ conc với giới hạn clock (uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật): MI300X sclk ≤ 1100; MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai. Bảng ở mục [Sweep đủ conc](#sweep-đủ-conc-c1c1024-cập-nhật-2026-11-09-0630-kst-đang-bổ-sung).
 - [ ] **Đang chờ máy trống:** MI325X sclk ≤ 900 và ≤ 1000 (giữ HBM 1500), đủ conc, để so ở cùng clock thực tế với MI300X ở conc cao. Khi đặt trần 1100, MI300X chỉ chạy được 875–1060 MHz.
 - [ ] Đo lại 2 điểm bất thường của MI325X sclk ≤ 1100 + HBM ≤ 1300 (stress uniform c128, c1024).
 - [ ] Sau tất cả thí nghiệm: kiểm tra lần cuối clock/HBM/power cap của cả hai máy trùng với trạng thái ban đầu.
