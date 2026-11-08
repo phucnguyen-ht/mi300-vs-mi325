@@ -2,7 +2,67 @@
 
 Repo này ghi kết quả op-test cho kernel MoE (routed experts) của GLM-5.3-Flash khi decode. Mục tiêu là giải thích vì sao decode trên MI300X chậm hơn MI325X: TPOT chênh khoảng ×1.4 ở 1P1D, DP4-EP4 × 2 replica, MTP k=1.
 
-Cập nhật lần cuối: **2026-11-09 01:30 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+Cập nhật lần cuối: **2026-11-09 01:45 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+
+## Bối cảnh: gap đo e2e
+
+**Setup**
+- GLM-5.3-Flash, 1P1D. Node decode gồm 2 replica, mỗi replica DP4-EP4 (4 GPU); MTP k=1.
+- Bench ISL 10k. Hai máy dùng cùng image, cùng preset, cùng cách bench.
+- Node decode: 8 × MI300X (làm mát khí, cap 750 W/GPU) và 8 × MI325X (bản làm mát lỏng, cap 1000 W/GPU).
+
+**TPOT, clock và power theo conc** (TPOT phía client; sclk và power là trung bình 8 GPU node decode, lấy mẫu mỗi 1 s)
+
+| conc | ≈ request / DP rank | MI300X TPOT (ms) | MI325X TPOT (ms) | **gap** | sclk 300X / 325X (GHz) | sclk 325X/300X | power 300X / 325X (W) |
+|---|---|---|---|---|---|---|---|
+| 8 | 1 | 7.81 | 6.92 | **×1.13** | 1.73 / 2.08 | 1.20 | 530 / 595 |
+| 16 | 2 | 9.88 | 7.96 | **×1.24** | 1.56 / 2.07 | 1.33 | 560 / 660 |
+| 32 | 4 | 11.96 | 8.86 | **×1.35** | 1.31 / 2.06 | 1.57 | 547 / 759 |
+| 64 | 8 | 13.68 | 10.58 | **×1.29** | 1.22 / 2.06 | 1.69 | 563 / 809 |
+| 128 | 16 | 15.09 | 11.37 | **×1.33** | 1.16 / 2.01 | 1.73 | 606 / 919 |
+| 512 | 64 | 23.84 | 16.59 | **×1.44** | 1.10 / 1.81 | 1.64 | 651 / 956 |
+| 1536 | 192 | 43.62 | 31.39 | **×1.39** | 1.09 / 1.71 | 1.57 | 669 / 940 |
+
+Các điểm chính:
+- **MI300X không chạm 750 W nhưng sclk vẫn tụt theo tải:** 1.73 GHz ở c8, còn 1.10 GHz ở c512, trong khi power chỉ 530–670 W.
+  - PPT chỉ active 1.5–10 % thời gian từ c8 đến c128, và 30 % ở c512.
+  - Thermal và PROCHOT bằng 0. Hotspot MI300X 82–88 °C, MI325X 46–52 °C.
+- **MI325X giữ khoảng 2.06 GHz đến c64.** Nó chỉ xuống 1.81 GHz ở c512, khi đã chạm cap 1000 W (PPT 95 %).
+- **HBM clock:** 1300 MHz (MI300X) và 1500 MHz (MI325X), tức ×1.15, giữ nguyên từ c8 đến c512.
+- **Gap tăng nhanh từ c8 đến c32** (khoảng 1 → 4 request/rank), đúng đoạn sclk MI300X rơi từ 1.73 xuống 1.31 GHz. Sau đó gap đi ngang ở ×1.29–1.44.
+
+**Breakdown một step decode ở c512** (torch profile 180 s trên 1 replica, rank 0; cả hai máy cùng batch 66 request/rank và cùng binary kernel)
+
+| mỗi forward | MI300X | MI325X | ratio |
+|---|---|---|---|
+| step | 48.86 ms | 36.74 ms | **×1.33** |
+| Σ thời gian kernel | 46.33 ms | 35.78 ms | ×1.29 |
+| GPU idle | 4.69 ms (9.6 %) | 2.76 ms (7.5 %) | ×1.70 |
+
+Phần chênh 12.1 ms của step gồm 84 % là kernel GPU chậm hơn, 16 % là GPU idle nhiều hơn (phía host/CPU).
+
+| nhóm kernel | MI300X µs/step | MI325X µs/step | **ratio** | % thời gian kernel (300X) | % phần chênh kernel |
+|---|---|---|---|---|---|
+| **MoE** (routed experts: CK a8w4 2-stage GEMM, sorting, quant) | 18713 | 13455 | **×1.39** | 40.4 % | **50 %** |
+| GEMM dense (fp8 CK preshuffle, hipBLASLt, batched a8w8) | 9294 | 7229 | ×1.29 | 20.1 % | 20 % |
+| attention KDA (linear attention) | 4441 | 3692 | ×1.20 | 9.6 % | 7 % |
+| attention sparse MLA | 2264 | 1754 | ×1.29 | 4.9 % | 5 % |
+| indexer | 583 | 476 | ×1.22 | 1.3 % | 1 % |
+| Mori dispatch / combine (EP) | 4790 | 3826 | ×1.25 | 10.3 % | 9 % |
+| mHC | 2523 | 2106 | ×1.20 | 5.4 % | 4 % |
+| quant / copy / norm / sampling / khác | 3722 | 3243 | ×1.15 | 8.1 % | 5 % |
+| **Σ kernel** | 46329 | 35781 | **×1.29** | | 100 % |
+
+- **MoE mỗi lời gọi trong e2e:**
+  - stage1: 262.5 µs (MI300X) / 180.0 µs (MI325X), ×1.46;
+  - stage2: 146.2 / 107.6 µs, ×1.36;
+  - sorting: 9.0 / 7.5 µs;
+  - tổng ≈ 418 / 295 µs, ×1.41.
+- Chính tỉ lệ MoE ×40 : GEMM 20 : KDA 10 : MLA 5 (% thời gian kernel của MI300X) được dùng để dựng chế độ interleave của op-test bên dưới.
+- **Lưu ý:**
+  - Profiler làm step chậm hơn ở cả hai máy: 48.9 so với 41.4 ms, và 36.7 so với 31.2 ms khi không profile. Ratio thì không đổi (×1.33).
+  - TPOT tổng ở c512 là ×1.44, cao hơn ×1.33, vì replica thứ hai của MI300X chậm hơn replica thứ nhất khoảng 17 %, còn MI325X thì đối xứng. Phần lệch replica đang được tách riêng, không thuộc phạm vi op-test.
+- **Câu hỏi mà op-test cần trả lời:** vì sao MoE, nhóm chiếm một nửa phần chênh, lại chậm ×1.39–1.41? Do sclk, do HBM, hay do yếu tố khác?
 
 ## Thuật ngữ
 
@@ -279,5 +339,11 @@ Ghi chú:
 - [x] Thí nghiệm giới hạn clock (sclk / HBM) trên cả hai máy, đã trả clock về như cũ và kiểm tra lại.
 - [x] Viết lại kết luận "gap đến từ đâu" theo thí nghiệm clock. Bản trước dựa trên sclk trung bình và kết luận "không do sclk"; kết luận đó sai. Xem mục [Kết luận](#kết-luận).
 - [x] Đo lại điểm bất thường MI325X stress c64, sclk ≤ 1100 + HBM ≤ 1300: 395 → 259.8 µs.
-- [ ] Tìm cơ chế giữ clock MI300X ở khoảng 1.0–1.3 GHz khi chạy MoE dù chưa chạm cap power. Có thể là giới hạn dòng điện, mà amd-smi không có bộ đếm throttle cho nó.
-- [ ] Interleave chưa mô phỏng Mori, mHC, quant/copy; 25 % đó đang thay bằng idle. MI300X op-test vẫn nhanh hơn e2e khoảng 9 %, MI325X khoảng 3 %.
+- [x] Thêm bối cảnh gap e2e (TPOT, clock, power, breakdown c512) vào README.
+- [ ] **Đang làm:** tìm cơ chế giữ clock MI300X ở khoảng 1.0–1.3 GHz khi chạy MoE dù chưa chạm cap power.
+  - Cách làm: ép sclk tối thiểu (min clock) lên 1.5 / 1.9 GHz trên MI300X, xem GPU có chạy được ở đó không, power lên bao nhiêu, latency MoE giảm bao nhiêu.
+  - Đọc thêm các counter throttle, điện áp và năng lượng mà amd-smi có.
+- [ ] **Tiếp theo:** interleave sát e2e hơn.
+  - Thay 25 % idle bằng kernel thật: mHC, quant, copy; Mori cần nhiều GPU nên sẽ để riêng.
+  - Thêm shared expert chạy overlap trên stream phụ như server.
+  - Mục tiêu: thu hẹp chênh lệch op-test so với e2e (MI300X nhanh hơn e2e khoảng 9 %, MI325X khoảng 3 %).
