@@ -383,3 +383,7 @@ Ghi chú:
 - [x] Tái hiện e2e từ op-test, bước 3: Mori thật giữa các GPU (2 nhóm EP4, all-to-all dispatch/combine), đủ 8 GPU.
   - Ở dump c512: MI300X 405.4 µs @ 1115 MHz, 656 W, 83 °C; MI325X 295.9 µs @ 1837 MHz, 1000 W. Gap **×1.37**, e2e là ×1.41.
   - Clock, power và nhiệt độ của MI300X trùng với e2e (1.10 GHz, 651 W, 85 °C).
+- [ ] **Đang làm:** sweep đủ conc với giới hạn clock (uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật).
+  - MI300X sclk ≤ 1100: xong.
+  - MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai: đang chờ máy trống.
+- [ ] **Tiếp theo:** MI325X sclk ≤ 900 và ≤ 1000 (giữ HBM 1500), để cân đúng clock thực tế của MI300X ở conc cao. Khi đặt trần 1100, MI300X chỉ chạy được 900–990 MHz.
