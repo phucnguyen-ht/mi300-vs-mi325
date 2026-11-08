@@ -2,7 +2,7 @@
 
 Repo này ghi kết quả op-test cho kernel MoE (routed experts) của GLM-5.3-Flash khi decode. Mục tiêu là giải thích vì sao decode trên MI300X chậm hơn MI325X: TPOT chênh khoảng ×1.4 ở 1P1D, DP4-EP4 × 2 replica, MTP k=1.
 
-Cập nhật lần cuối: **2026-11-09 01:45 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+Cập nhật lần cuối: **2026-11-09 02:15 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
 
 ## Bối cảnh: gap đo e2e
 
@@ -63,6 +63,20 @@ Phần chênh 12.1 ms của step gồm 84 % là kernel GPU chậm hơn, 16 % là
   - Profiler làm step chậm hơn ở cả hai máy: 48.9 so với 41.4 ms, và 36.7 so với 31.2 ms khi không profile. Ratio thì không đổi (×1.33).
   - TPOT tổng ở c512 là ×1.44, cao hơn ×1.33, vì replica thứ hai của MI300X chậm hơn replica thứ nhất khoảng 17 %, còn MI325X thì đối xứng. Phần lệch replica đang được tách riêng, không thuộc phạm vi op-test.
 - **Câu hỏi mà op-test cần trả lời:** vì sao MoE, nhóm chiếm một nửa phần chênh, lại chậm ×1.39–1.41? Do sclk, do HBM, hay do yếu tố khác?
+
+## Bandwidth: HBM và kernel MoE
+
+| máy | HBM spec | BabelStream đo được (Copy, TB/s) | BabelStream / spec | kernel MoE, e2e (TB/s) | kernel MoE, op-test interleave (TB/s) | kernel MoE, op-test stress (TB/s) |
+|---|---|---|---|---|---|---|
+| **MI300X** (HBM3) | **5.3 TB/s** | **4.23** (max 4.29) | 80 % | **2.23** = 53 % BabelStream / 42 % spec | **2.44** = 58 % / 46 % | **2.53** = 60 % / 48 % |
+| **MI325X** (HBM3E) | **6.0 TB/s** | **4.61** (max 4.70) | 77 % | **3.15** = 68 % BabelStream / 53 % spec | **3.24** = 70 % / 54 % | **3.10** = 67 % / 52 % |
+| MI325X / MI300X | ×1.13 | ×1.09 | | **×1.41** | ×1.33 | ×1.23 |
+
+- **BabelStream:** `hip-stream`, kiểu double, mảng 2 GiB, 100 lần mỗi kernel. Số trong bảng là trung bình Copy trên 8 GPU của mỗi node, ngoặc là GPU cao nhất. Mảng 4 GiB cho kết quả tương đương.
+- **Kernel MoE:** ở c512 với input dump (routing thật), trọng số thật. Bandwidth = số byte một lời gọi ÷ latency một lời gọi.
+  - Số byte một lời gọi là **930 MB** (stage1 + stage2 + sorting + quant), đo bằng `rocprofv3` FETCH_SIZE + WRITE_SIZE. Đây là lượng L2 đọc từ fabric (HBM hoặc MALL) cộng lượng ghi, và như nhau trên hai máy.
+  - Latency: e2e lấy từ trace (418 / 295 µs), op-test lấy từ bảng ở mục Kết quả.
+- **Đọc bảng:** kernel MoE chỉ khai thác 42–48 % HBM spec trên MI300X, so với 52–54 % trên MI325X. Peak HBM chỉ chênh ×1.09–1.13, nhưng bandwidth thực tế của kernel chênh ×1.23–1.41. Như vậy kernel không bị giới hạn bởi peak HBM; xem thí nghiệm clock ở dưới (sclk là yếu tố chính).
 
 ## Thuật ngữ
 
@@ -340,6 +354,7 @@ Ghi chú:
 - [x] Viết lại kết luận "gap đến từ đâu" theo thí nghiệm clock. Bản trước dựa trên sclk trung bình và kết luận "không do sclk"; kết luận đó sai. Xem mục [Kết luận](#kết-luận).
 - [x] Đo lại điểm bất thường MI325X stress c64, sclk ≤ 1100 + HBM ≤ 1300: 395 → 259.8 µs.
 - [x] Thêm bối cảnh gap e2e (TPOT, clock, power, breakdown c512) vào README.
+- [x] Bandwidth: đo lại BabelStream trên 8 GPU mỗi máy, đo số byte mỗi lời gọi MoE bằng `rocprofv3`, thêm bảng bandwidth của kernel so với HBM.
 - [ ] **Đang làm:** tìm cơ chế giữ clock MI300X ở khoảng 1.0–1.3 GHz khi chạy MoE dù chưa chạm cap power.
   - Cách làm: ép sclk tối thiểu (min clock) lên 1.5 / 1.9 GHz trên MI300X, xem GPU có chạy được ở đó không, power lên bao nhiêu, latency MoE giảm bao nhiêu.
   - Đọc thêm các counter throttle, điện áp và năng lượng mà amd-smi có.
