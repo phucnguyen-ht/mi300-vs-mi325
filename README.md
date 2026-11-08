@@ -2,7 +2,7 @@
 
 Repo này ghi kết quả op-test cho kernel MoE (routed experts) của GLM-5.3-Flash khi decode. Mục tiêu là giải thích vì sao decode trên MI300X chậm hơn MI325X: TPOT chênh khoảng ×1.4 ở 1P1D, DP4-EP4 × 2 replica, MTP k=1.
 
-Cập nhật lần cuối: **2026-11-09 01:53 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+Cập nhật lần cuối: **2026-11-09 01:56 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
 
 ## Bối cảnh: gap đo e2e
 
@@ -384,7 +384,20 @@ Ghi chú:
 - **MI325X khớp e2e:** 292.5 µs so với 295 µs, lệch −1 %.
 - **MI300X vẫn nhanh hơn e2e khoảng 9 %:** 379.7 so với 418 µs.
   - Trong e2e, MI300X chạy ở clock thấp hơn (1.10 so với 1.20 GHz) dù power cao hơn (651 so với 593 W).
-  - Phần chênh này nằm ở môi trường của cả node khi chạy e2e. Hai khả năng: cả 8 GPU chạy cùng lúc nên nóng hơn (hotspot 85 °C so với khoảng 70 °C), hoặc Mori trao đổi dữ liệu thật giữa các GPU. Đang kiểm tra khả năng thứ nhất.
+  - Phần chênh này nằm ở môi trường của cả node khi chạy e2e. Hai khả năng: cả 8 GPU chạy cùng lúc nên nóng hơn (hotspot 85 °C so với khoảng 70 °C), hoặc Mori trao đổi dữ liệu thật giữa các GPU.
+
+**Kiểm tra cả node.** Cùng điểm dump c512 (bản interleave mới), chạy nóng 60 s rồi đo 20 s:
+
+| | MI300X | MI325X |
+|---|---|---|
+| 1 GPU, chưa chạy nóng | 379.7 µs @ 1202 MHz, 593 W | 292.5 µs @ 1890 MHz, 999 W |
+| 1 GPU, sau 60 s chạy nóng | 385.6 µs @ 1142 MHz, 629 W | 292.4 µs @ 1866 MHz, 1000 W |
+| **8 GPU cùng lúc** (trung bình 8 GPU) | **390.5 µs** @ 1132 MHz, 633 W (từng GPU: 380–399) | **289.6 µs** @ 1866 MHz, 999 W (283–294) |
+| e2e | 418 µs @ 1.10 GHz, 651 W | 295 µs @ 1.81 GHz, 956 W |
+
+- **MI300X:** chạy nóng và chạy cả node làm MoE chậm thêm khoảng 3 % (clock giảm khoảng 70 MHz). Vẫn còn nhanh hơn e2e khoảng 7 %; hotspot op-test 66–82 °C, e2e 85 °C.
+- **MI325X:** không đổi và khớp e2e (lệch −2 %).
+- **Gap khi chạy cả node:** ×1.35, so với e2e ×1.41.
 
 ## TODO
 
@@ -397,5 +410,5 @@ Ghi chú:
 - [x] Bandwidth: đo lại BabelStream trên 8 GPU mỗi máy, đo số byte mỗi lời gọi MoE bằng `rocprofv3`, thêm bảng bandwidth của kernel so với HBM.
 - [x] Cơ chế giữ clock MI300X ở 1.0–1.3 GHz: đã thử nâng min clock lên 1500/1900 MHz và firmware bỏ qua, nên đây là giới hạn cứng trong firmware. Không phải PPT trung bình, không phải nhiệt; không có counter nào báo ra (xem mục trên).
 - [x] Interleave sát e2e hơn (mHC thật, norm/copy, shared expert overlap): MI325X khớp e2e (−1 %), MI300X vẫn nhanh hơn e2e khoảng 9 %.
-- [ ] **Đang làm:** chạy cùng một điểm (dump c512, interleave) trên **cả 8 GPU cùng lúc**, để node nóng và tốn power như khi chạy e2e. Xem clock của MI300X có xuống 1.10 GHz và MoE có lên khoảng 418 µs như e2e không.
-- [ ] Mori dispatch/combine thật giữa các GPU (op-test nhiều GPU), nếu bước trên chưa giải thích được phần chênh 9 %.
+- [x] Chạy cùng một điểm trên cả 8 GPU, có chạy nóng 60 s: MI300X chậm thêm khoảng 3 % (390.5 µs), gap ×1.35. MI300X vẫn nhanh hơn e2e khoảng 7 %.
+- [ ] **Đang làm:** thay phần idle "Mori" bằng trao đổi dữ liệu thật giữa 4 GPU. Mỗi lớp có dispatch (fp8) và combine (bf16) dạng all-to-all trong nhóm EP4, đủ số byte như server, chạy trong HIP graph; 4 rank chạy khớp nhịp như e2e (rank chậm làm các rank khác chờ).
