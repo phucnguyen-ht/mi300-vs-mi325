@@ -2,7 +2,7 @@
 
 Repo này ghi kết quả op-test cho kernel MoE (routed experts) của GLM-5.3-Flash khi decode. Mục tiêu là giải thích vì sao decode trên MI300X chậm hơn MI325X: TPOT chênh khoảng ×1.4 ở 1P1D, DP4-EP4 × 2 replica, MTP k=1.
 
-Cập nhật lần cuối: **2026-11-09 02:10 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+Cập nhật lần cuối: **2026-11-09 02:19 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
 
 ## Bối cảnh: gap đo e2e
 
@@ -356,7 +356,7 @@ Ghi chú:
 - [x] Thêm bối cảnh gap e2e (TPOT, clock, power, breakdown c512) vào README.
 - [x] Bandwidth: đo lại BabelStream trên 8 GPU mỗi máy, đo số byte mỗi lời gọi MoE bằng `rocprofv3`, thêm bảng bandwidth của kernel so với HBM.
 - [x] Cơ chế giữ clock MI300X ở 1.0–1.3 GHz: đã thử nâng min clock lên 1500/1900 MHz và firmware bỏ qua, nên đây là giới hạn cứng trong firmware. Không phải PPT trung bình, không phải nhiệt; amd-smi không có counter nào báo ra.
-- [x] Tái hiện e2e từ op-test, bước 1: interleave sát e2e hơn (mHC thật, norm/copy, shared expert chạy overlap). MI325X khớp e2e, MI300X vẫn nhanh hơn.
+- [x] Tái hiện e2e từ op-test, bước 1: thêm mHC thật, norm/copy và shared expert chạy overlap vào chế độ interleave. MI325X khớp e2e, MI300X vẫn nhanh hơn.
 - [x] Tái hiện e2e từ op-test, bước 2: chạy cả 8 GPU cùng lúc, có chạy nóng 60 s. MI300X chậm thêm khoảng 3 %, gap ×1.35.
 - [x] Tái hiện e2e từ op-test, bước 3: Mori thật giữa các GPU (2 nhóm EP4, all-to-all dispatch/combine), đủ 8 GPU.
   - Ở dump c512: MI300X 405.4 µs @ 1115 MHz, 656 W, 83 °C; MI325X 295.9 µs @ 1837 MHz, 1000 W. Gap **×1.37**, e2e là ×1.41.
