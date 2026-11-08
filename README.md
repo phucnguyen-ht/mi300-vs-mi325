@@ -58,7 +58,7 @@ Phần chênh 12.1 ms của step gồm 84 % là kernel GPU chậm hơn, 16 % là
   - stage2: 146.2 / 107.6 µs, ×1.36;
   - sorting: 9.0 / 7.5 µs;
   - tổng ≈ 418 / 295 µs, ×1.41.
-- Chính tỉ lệ MoE ×40 : GEMM 20 : KDA 10 : MLA 5 (% thời gian kernel của MI300X) được dùng để dựng chế độ interleave của op-test bên dưới.
+- Chính tỉ lệ MoE 40 : GEMM 20 : KDA 10 : MLA 5 (% thời gian kernel của MI300X) được dùng để dựng chế độ interleave của op-test bên dưới.
 - **Lưu ý:**
   - Profiler làm step chậm hơn ở cả hai máy: 48.9 so với 41.4 ms, và 36.7 so với 31.2 ms khi không profile. Ratio thì không đổi (×1.33).
   - TPOT tổng ở c512 là ×1.44, cao hơn ×1.33, vì replica thứ hai của MI300X chậm hơn replica thứ nhất khoảng 17 %, còn MI325X thì đối xứng. Phần lệch replica đang được tách riêng, không thuộc phạm vi op-test.
