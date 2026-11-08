@@ -343,6 +343,116 @@ Ghi chú:
 - **Cho MI325X cùng mức trần với MI300X (sclk ≤ 1950, HBM ≤ 1300) thì gap vẫn còn ×1.13–1.27.** Lý do là MI325X còn dư power (cap 1000 W) nên vẫn chạy khoảng 1.9 GHz. MI300X thì chạy MoE ở khoảng 1.0–1.3 GHz ngay cả khi chưa chạm 750 W.
 - **Lưu ý về sclk trung bình.** Trên MI300X, sclk trung bình có thể đánh lừa. Ở c16 interleave, trung bình là 1.64 GHz nhưng latency MoE bằng lúc stress ở 1.32 GHz; các đoạn GEMM/idle kéo trung bình lên.
 
+### Sweep đủ conc c1–c1024 (cập nhật 2026-11-09 ~06:40 KST, đang bổ sung)
+
+**Cách làm**
+- Chạy lại toàn bộ bộ điểm của mục [Kết quả](#kết-quả-2-bảng--3-bảng-con): uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật, đo events 20 s mỗi điểm.
+- Mỗi cấu hình clock chạy trên một nhóm GPU riêng, các nhóm chạy song song.
+  - MI300X: gốc, sclk ≤ 1100.
+  - MI325X: gốc, sclk ≤ 1100, HBM ≤ 1300, sclk ≤ 1100 + HBM ≤ 1300.
+- Đo xong trả clock về như cũ và đã kiểm tra lại: **giống hệt** lúc trước trên cả hai máy.
+
+**Các cột gap** (latency MoE MI300X / MI325X, cùng dataset và conc):
+- **gap gốc:** MI300X gốc / MI325X gốc.
+- **gap cùng trần sclk 1100:** MI300X sclk ≤ 1100 / MI325X sclk ≤ 1100. HBM giữ nguyên (1300 / 1500 MHz).
+- **gap cùng trần sclk 1100 + HBM 1300:** MI300X sclk ≤ 1100 / MI325X sclk ≤ 1100 + HBM ≤ 1300.
+- **MI325X: hạ riêng HBM:** MI325X HBM ≤ 1300 / MI325X gốc.
+- **sclk MI300X gốc:** sclk trung bình trong 20 s đo. Ở stress thì đây chính là clock lúc MoE chạy. Ở interleave, các đoạn GEMM/idle kéo trung bình lên, nên clock lúc MoE chạy thấp hơn số này.
+- "đo lại": điểm có latency bất thường, đang đo lại.
+
+**stress, uniform**
+
+| conc | m_toks | sclk MI300X gốc (MHz) | gap gốc | gap cùng trần sclk 1100 | gap cùng trần sclk 1100 + HBM 1300 | MI325X: hạ riêng HBM |
+|---|---|---|---|---|---|---|
+| 1 | 2 | 1945 | ×1.07 | ×1.08 | ×1.09 | ×0.99 |
+| 2 | 2 | 1943 | ×1.08 | ×1.08 | ×1.08 | ×1.02 |
+| 4 | 2 | 1843 | ×1.12 | ×1.07 | ×1.06 | ×1.00 |
+| 8 | 2 | 1602 | ×1.26 | ×1.04 | ×1.04 | ×1.03 |
+| 16 | 4 | 1291 | ×1.36 | ×1.06 | ×1.06 | ×1.04 |
+| 32 | 8 | 1046 | ×1.28 | ×1.15 | ×1.12 | ×1.04 |
+| 64 | 16 | 1001 | ×1.24 | ×1.16 | ×1.10 | ×1.06 |
+| 128 | 32 | 979 | ×1.21 | ×1.18 | đo lại | ×1.02 |
+| 256 | 64 | 940 | ×1.23 | ×1.17 | ×1.12 | ×1.01 |
+| 512 | 128 | 981 | ×1.17 | ×1.19 | ×1.17 | ×1.00 |
+| 768 | 192 | 1055 | ×1.18 | ×1.16 | ×1.17 | ×1.02 |
+| 1024 | 256 | 1062 | ×1.26 | ×1.20 | đo lại | ×1.01 |
+
+**interleave, uniform**
+
+| conc | m_toks | sclk MI300X gốc (MHz) | gap gốc | gap cùng trần sclk 1100 | gap cùng trần sclk 1100 + HBM 1300 | MI325X: hạ riêng HBM |
+|---|---|---|---|---|---|---|
+| 1 | 2 | 1906 | ×1.08 | ×1.09 | ×1.09 | ×1.00 |
+| 2 | 2 | 1911 | ×1.09 | ×1.05 | ×1.08 | ×1.01 |
+| 4 | 2 | 1877 | ×1.11 | ×1.06 | ×1.06 | ×0.99 |
+| 8 | 2 | 1789 | ×1.23 | ×1.04 | ×1.04 | ×1.01 |
+| 16 | 4 | 1670 | ×1.30 | ×1.05 | ×1.05 | ×1.00 |
+| 32 | 8 | 1428 | ×1.29 | ×1.15 | ×1.11 | ×1.07 |
+| 64 | 16 | 1229 | ×1.24 | ×1.15 | ×1.10 | ×1.04 |
+| 128 | 32 | 1202 | ×1.28 | ×1.16 | ×1.14 | ×1.06 |
+| 256 | 64 | 1155 | ×1.27 | ×1.20 | ×1.15 | ×1.03 |
+| 512 | 128 | 1125 | ×1.35 | ×1.19 | ×1.15 | ×1.06 |
+| 768 | 192 | 1146 | ×1.30 | ×1.24 | ×1.21 | ×1.07 |
+| 1024 | 256 | 1144 | ×1.42 | ×1.20 | ×1.21 | ×1.05 |
+
+<details><summary>skew và dump</summary>
+
+**stress, skew**
+
+| conc | m_toks | sclk MI300X gốc (MHz) | gap gốc | gap cùng trần sclk 1100 | gap cùng trần sclk 1100 + HBM 1300 | MI325X: hạ riêng HBM |
+|---|---|---|---|---|---|---|
+| 1 | 2 | 1939 | ×1.01 | ×1.08 | ×1.08 | ×0.95 |
+| 2 | 2 | 1942 | ×1.08 | ×1.08 | ×1.09 | ×1.00 |
+| 4 | 2 | 1861 | ×1.12 | ×1.05 | ×1.08 | ×1.00 |
+| 8 | 2 | 1635 | ×1.23 | ×1.05 | ×1.05 | ×1.06 |
+| 16 | 4 | 1338 | ×1.29 | ×1.05 | ×1.05 | ×1.02 |
+| 32 | 8 | 1080 | ×1.23 | ×1.13 | ×1.10 | ×1.03 |
+| 64 | 16 | 987 | ×1.20 | ×1.14 | ×1.08 | ×1.02 |
+| 128 | 32 | 989 | ×1.26 | ×1.17 | ×1.14 | ×1.05 |
+| 256 | 64 | 962 | ×1.22 | ×1.21 | ×1.18 | ×1.00 |
+| 512 | 128 | 1050 | ×1.22 | ×1.20 | ×1.19 | ×1.01 |
+| 768 | 192 | 1007 | ×1.34 | ×1.19 | ×1.19 | ×1.04 |
+| 1024 | 256 | 982 | ×1.36 | ×1.28 | ×1.27 | ×1.00 |
+
+**stress, dump**
+
+| conc | m_toks | sclk MI300X gốc (MHz) | gap gốc | gap cùng trần sclk 1100 | gap cùng trần sclk 1100 + HBM 1300 | MI325X: hạ riêng HBM |
+|---|---|---|---|---|---|---|
+| 512 | 128 | 1061 | ×1.23 | ×1.17 | ×1.17 | ×1.01 |
+
+**interleave, skew**
+
+| conc | m_toks | sclk MI300X gốc (MHz) | gap gốc | gap cùng trần sclk 1100 | gap cùng trần sclk 1100 + HBM 1300 | MI325X: hạ riêng HBM |
+|---|---|---|---|---|---|---|
+| 1 | 2 | 1906 | ×1.09 | ×1.08 | ×1.08 | ×1.00 |
+| 2 | 2 | 1907 | ×1.08 | ×1.06 | ×1.08 | ×0.99 |
+| 4 | 2 | 1871 | ×1.11 | ×1.07 | ×1.08 | ×1.00 |
+| 8 | 2 | 1779 | ×1.25 | ×1.04 | ×1.05 | ×1.01 |
+| 16 | 4 | 1689 | ×1.35 | ×1.04 | ×1.05 | ×1.04 |
+| 32 | 8 | 1416 | ×1.29 | ×1.12 | ×1.09 | ×1.05 |
+| 64 | 16 | 1298 | ×1.20 | ×1.13 | ×1.08 | ×1.04 |
+| 128 | 32 | 1188 | ×1.26 | ×1.18 | ×1.14 | ×1.04 |
+| 256 | 64 | 1160 | ×1.31 | ×1.22 | ×1.19 | ×1.06 |
+| 512 | 128 | 1157 | ×1.34 | ×1.20 | ×1.18 | ×1.06 |
+| 768 | 192 | 1143 | ×1.41 | ×1.20 | ×1.19 | ×1.06 |
+| 1024 | 256 | 1143 | ×1.45 | ×1.16 | ×1.17 | ×1.02 |
+
+**interleave, dump**
+
+| conc | m_toks | sclk MI300X gốc (MHz) | gap gốc | gap cùng trần sclk 1100 | gap cùng trần sclk 1100 + HBM 1300 | MI325X: hạ riêng HBM |
+|---|---|---|---|---|---|---|
+| 512 | 128 | 1155 | ×1.33 | ×1.19 | ×1.17 | ×1.04 |
+
+</details>
+
+**Đọc kết quả**
+- **c1–c16:** khi cùng trần 1100, cả hai máy chạy thật ở khoảng 1.06–1.1 GHz. Gap còn **×1.04–1.09** (gốc ×1.01–1.36). Cân thêm HBM gần như không đổi.
+- **c32–c1024:** cùng trần 1100 nhưng clock thực tế vẫn chưa bằng nhau, nên gap "cùng trần" ×1.12–1.28 là so ở hai mức clock khác nhau.
+  - MI300X không giữ được 1100: stress chỉ 875–975 MHz, interleave trung bình 955–1060 MHz.
+  - MI325X giữ được khoảng 1040–1080 MHz.
+  - Đang đo MI325X sclk ≤ 900 / ≤ 1000 để so ở cùng clock thực tế.
+- **Dấu hiệu sớm:** ở các conc mà MI300X gốc tự chạy khoảng 1050 MHz (stress uniform c32 / c768 / c1024, stress skew c512), MI325X sclk ≤ 1100 cũng chạy khoảng 1050 MHz. So hai số này, gap chỉ còn **×1.06–1.08**, ngang mức ảnh hưởng của HBM.
+- **Hạ riêng HBM của MI325X** (1500 → 1300 MHz) chỉ chậm thêm ×0.95–1.07 ở mọi conc.
+
 ## Kết luận
 
 - Gap MoE MI300X/MI325X (×1.2–1.4) đến **chủ yếu từ sclk thực tế lúc kernel MoE chạy**: MI300X khoảng 1.0–1.3 GHz, MI325X khoảng 1.7–2.0 GHz.
@@ -383,7 +493,7 @@ Ghi chú:
 - [x] Tái hiện e2e từ op-test, bước 3: Mori thật giữa các GPU (2 nhóm EP4, all-to-all dispatch/combine), đủ 8 GPU.
   - Ở dump c512: MI300X 405.4 µs @ 1115 MHz, 656 W, 83 °C; MI325X 295.9 µs @ 1837 MHz, 1000 W. Gap **×1.37**, e2e là ×1.41.
   - Clock, power và nhiệt độ của MI300X trùng với e2e (1.10 GHz, 651 W, 85 °C).
-- [ ] **Đang làm:** sweep đủ conc với giới hạn clock (uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật).
-  - MI300X sclk ≤ 1100: xong.
-  - MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai: đang chờ máy trống.
-- [ ] **Tiếp theo:** MI325X sclk ≤ 900 và ≤ 1000 (giữ HBM 1500), để cân đúng clock thực tế của MI300X ở conc cao. Khi đặt trần 1100, MI300X chỉ chạy được 900–990 MHz.
+- [x] Sweep đủ conc với giới hạn clock (uniform/skew c1–c1024, dump c512, stress và interleave, trọng số thật): MI300X sclk ≤ 1100; MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai. Bảng ở mục [Sweep đủ conc](#sweep-đủ-conc-c1c1024-cập-nhật-2026-11-09-0640-kst-đang-bổ-sung).
+- [ ] **Đang chờ máy trống:** MI325X sclk ≤ 900 và ≤ 1000 (giữ HBM 1500), đủ conc, để so ở cùng clock thực tế với MI300X ở conc cao. Khi đặt trần 1100, MI300X chỉ chạy được 875–1060 MHz.
+- [ ] Đo lại 2 điểm bất thường của MI325X sclk ≤ 1100 + HBM ≤ 1300 (stress uniform c128, c1024).
+- [ ] Sau tất cả thí nghiệm: kiểm tra lần cuối clock/HBM/power cap của cả hai máy trùng với trạng thái ban đầu.
