@@ -2,7 +2,7 @@
 
 Repo này ghi kết quả op-test cho kernel MoE (routed experts) của GLM-5.3-Flash khi decode. Mục tiêu là giải thích vì sao decode trên MI300X chậm hơn MI325X: TPOT chênh khoảng ×1.4 ở 1P1D, DP4-EP4 × 2 replica, MTP k=1.
 
-Cập nhật lần cuối: **2026-11-09 01:56 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+Cập nhật lần cuối: **2026-11-09 02:04 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
 
 ## Bối cảnh: gap đo e2e
 
@@ -365,40 +365,6 @@ Ghi chú:
 - Vậy đây là **giới hạn cứng trong firmware**, ưu tiên hơn cả cài đặt của người dùng. Nó không phải PPT trung bình và không phải nhiệt.
 - Ứng viên còn lại là giới hạn dòng điện (EDC/TDC) hoặc PPT tính trên cửa sổ rất ngắn. amd-smi trên MI300X không có counter cho các loại này: điện áp, `GFX_CLK_BELOW_HOST_LIMIT_*` đều báo N/A.
 
-## Cập nhật: interleave sát e2e hơn
-
-**Thay đổi:**
-- 25 % "còn lại" giờ không còn là idle hoàn toàn mà gồm: **mHC thật** (`rocm_aiter_ops.mhc_pre` + `mhc_post`) 5 %, **rmsnorm + copy** 8 %, và idle 12 %. Idle đại diện cho Mori dispatch/combine (cần các GPU khác trong nhóm EP) và GPU nghỉ thật.
-- **shared expert chạy trên stream phụ**, song song với MoE, như server.
-- Tỉ lệ step đo được: MoE 39 : GEMM 20 : KDA 10 : MLA 5 : mHC 5 : norm/copy 8 : idle 12.
-
-| uniform / dump, trọng số thật | MI300X: bản cũ → bản mới (µs @ sclk, W) | MI325X: bản cũ → bản mới | gap cũ → mới |
-|---|---|---|---|
-| dump c512 | 381.6 @ 1155, 611 W → **379.7** @ 1202, 593 W | 287.0 @ 1874, 974 W → **292.5** @ 1890, 999 W | ×1.33 → ×1.30 |
-| uniform c16 | 159.8 → 163.0 | 122.8 → 116.5 | ×1.30 → ×1.40 |
-| uniform c64 | 273.9 → 275.3 | 220.7 → 220.9 | ×1.24 → ×1.25 |
-| uniform c256 | 338.2 → 338.2 | 265.9 → 261.8 | ×1.27 → ×1.29 |
-| uniform c512 | 387.1 → 394.1 | 287.2 → 295.8 | ×1.35 → ×1.33 |
-| uniform c1024 | 461.7 → 479.9 | 325.7 → 332.2 | ×1.42 → ×1.44 |
-
-- **MI325X khớp e2e:** 292.5 µs so với 295 µs, lệch −1 %.
-- **MI300X vẫn nhanh hơn e2e khoảng 9 %:** 379.7 so với 418 µs.
-  - Trong e2e, MI300X chạy ở clock thấp hơn (1.10 so với 1.20 GHz) dù power cao hơn (651 so với 593 W).
-  - Phần chênh này nằm ở môi trường của cả node khi chạy e2e. Hai khả năng: cả 8 GPU chạy cùng lúc nên nóng hơn (hotspot 85 °C so với khoảng 70 °C), hoặc Mori trao đổi dữ liệu thật giữa các GPU.
-
-**Kiểm tra cả node.** Cùng điểm dump c512 (bản interleave mới), chạy nóng 60 s rồi đo 20 s:
-
-| | MI300X | MI325X |
-|---|---|---|
-| 1 GPU, chưa chạy nóng | 379.7 µs @ 1202 MHz, 593 W | 292.5 µs @ 1890 MHz, 999 W |
-| 1 GPU, sau 60 s chạy nóng | 385.6 µs @ 1142 MHz, 629 W | 292.4 µs @ 1866 MHz, 1000 W |
-| **8 GPU cùng lúc** (trung bình 8 GPU) | **390.5 µs** @ 1132 MHz, 633 W (từng GPU: 380–399) | **289.6 µs** @ 1866 MHz, 999 W (283–294) |
-| e2e | 418 µs @ 1.10 GHz, 651 W | 295 µs @ 1.81 GHz, 956 W |
-
-- **MI300X:** chạy nóng và chạy cả node làm MoE chậm thêm khoảng 3 % (clock giảm khoảng 70 MHz). Vẫn còn nhanh hơn e2e khoảng 7 %; hotspot op-test 66–82 °C, e2e 85 °C.
-- **MI325X:** không đổi và khớp e2e (lệch −2 %).
-- **Gap khi chạy cả node:** ×1.35, so với e2e ×1.41.
-
 ## TODO
 
 - [x] Op-test một file, 3 dataset (uniform, skew, dump), 2 mode (stress, interleave), trọng số real và random, 12 mức conc, trên MI300X và MI325X.
@@ -409,6 +375,3 @@ Ghi chú:
 - [x] Thêm bối cảnh gap e2e (TPOT, clock, power, breakdown c512) vào README.
 - [x] Bandwidth: đo lại BabelStream trên 8 GPU mỗi máy, đo số byte mỗi lời gọi MoE bằng `rocprofv3`, thêm bảng bandwidth của kernel so với HBM.
 - [x] Cơ chế giữ clock MI300X ở 1.0–1.3 GHz: đã thử nâng min clock lên 1500/1900 MHz và firmware bỏ qua, nên đây là giới hạn cứng trong firmware. Không phải PPT trung bình, không phải nhiệt; không có counter nào báo ra (xem mục trên).
-- [x] Interleave sát e2e hơn (mHC thật, norm/copy, shared expert overlap): MI325X khớp e2e (−1 %), MI300X vẫn nhanh hơn e2e khoảng 9 %.
-- [x] Chạy cùng một điểm trên cả 8 GPU, có chạy nóng 60 s: MI300X chậm thêm khoảng 3 % (390.5 µs), gap ×1.35. MI300X vẫn nhanh hơn e2e khoảng 7 %.
-- [ ] **Đang làm:** thay phần idle "Mori" bằng trao đổi dữ liệu thật giữa 4 GPU. Mỗi lớp có dispatch (fp8) và combine (bf16) dạng all-to-all trong nhóm EP4, đủ số byte như server, chạy trong HIP graph; 4 rank chạy khớp nhịp như e2e (rank chậm làm các rank khác chờ).
