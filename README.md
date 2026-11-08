@@ -2,7 +2,7 @@
 
 Repo này ghi kết quả op-test cho kernel MoE (routed experts) của GLM-5.3-Flash khi decode. Mục tiêu là giải thích vì sao decode trên MI300X chậm hơn MI325X: TPOT chênh khoảng ×1.4 ở 1P1D, DP4-EP4 × 2 replica, MTP k=1.
 
-Cập nhật lần cuối: **2026-11-09 02:25 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
+Cập nhật lần cuối: **2026-11-09 02:26 KST**. README được cập nhật mỗi khi có kết quả mới; xem [TODO](#todo).
 
 ## Bối cảnh: gap đo e2e
 
@@ -375,7 +375,6 @@ Ghi chú:
 - [x] Thêm cột power vào bảng mục Kết quả.
 - [x] Thí nghiệm giới hạn clock (sclk / HBM) trên cả hai máy, đã trả clock về như cũ và kiểm tra lại.
 - [x] Viết lại kết luận "gap đến từ đâu" theo thí nghiệm clock. Bản trước dựa trên sclk trung bình và kết luận "không do sclk"; kết luận đó sai. Xem mục [Kết luận](#kết-luận).
-- [x] Đo lại điểm bất thường MI325X stress c64, sclk ≤ 1100 + HBM ≤ 1300: 395 → 259.8 µs.
 - [x] Thêm bối cảnh gap e2e (TPOT, clock, power, breakdown c512) vào README.
 - [x] Bandwidth: đo lại BabelStream trên 8 GPU mỗi máy, đo số byte mỗi lời gọi MoE bằng `rocprofv3`, thêm bảng bandwidth của kernel so với HBM.
 - [x] Cơ chế giữ clock MI300X ở 1.0–1.3 GHz: đã thử nâng min clock lên 1500/1900 MHz và firmware bỏ qua, nên đây là giới hạn cứng trong firmware. Không phải PPT trung bình, không phải nhiệt; amd-smi không có counter nào báo ra (xem mục trên).
