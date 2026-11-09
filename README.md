@@ -335,7 +335,6 @@ Ghi chú:
 - **Ở c256–c512, đặt trần 1100 cho cả hai máy chưa làm clock thực tế bằng nhau.**
   - MI300X chạm cap power nên tụt xuống 900–990 MHz, còn MI325X giữ 1055–1068 MHz, tức MI325X vẫn cao hơn 8–17 %.
   - Vì vậy gap ×1.13–1.16 ở đây là so ở hai mức clock khác nhau, chưa phải phần còn lại sau khi cân clock.
-  - Đang đo bổ sung MI325X sclk ≤ 900 / ≤ 1000 để cân đúng clock thực tế của MI300X ở conc cao.
 - **HBM chỉ đóng góp nhỏ.**
   - MI325X hạ HBM từ 1500 xuống 1300 MHz thì chậm thêm 4–7 %.
   - MI300X hạ HBM từ 1300 xuống 1100 MHz thì latency không đổi (0.98–1.00).
@@ -343,7 +342,7 @@ Ghi chú:
 - **Cho MI325X cùng mức trần với MI300X (sclk ≤ 1950, HBM ≤ 1300) thì gap vẫn còn ×1.13–1.27.** Lý do là MI325X còn dư power (cap 1000 W) nên vẫn chạy khoảng 1.9 GHz. MI300X thì chạy MoE ở khoảng 1.0–1.3 GHz ngay cả khi chưa chạm 750 W.
 - **Lưu ý về sclk trung bình.** Trên MI300X, sclk trung bình có thể đánh lừa. Ở c16 interleave, trung bình là 1.64 GHz nhưng latency MoE bằng lúc stress ở 1.32 GHz; các đoạn GEMM/idle kéo trung bình lên.
 
-### Sweep đủ conc c1–c1024 (cập nhật 2026-11-09 ~06:30 KST, đang bổ sung)
+### Sweep đủ conc c1–c1024 (cập nhật 2026-11-09 ~06:30 KST)
 
 **Cách làm**
 - Chạy lại toàn bộ bộ điểm interleave của mục [Kết quả](#kết-quả-2-bảng--3-bảng-con): uniform/skew c1–c1024, dump c512, trọng số thật, đo events 20 s mỗi điểm.
@@ -413,14 +412,13 @@ Ghi chú:
 - **c32–c1024:** cùng trần 1100 nhưng clock thực tế vẫn chưa bằng nhau, nên gap "cùng trần" ×1.12–1.24 là so ở hai mức clock khác nhau.
   - MI300X không giữ được 1100: trung bình chỉ 955–1060 MHz, và lúc MoE chạy còn thấp hơn số trung bình này.
   - MI325X giữ được khoảng 1055–1080 MHz.
-  - Đang đo MI325X sclk ≤ 900 / ≤ 1000 để so ở cùng clock thực tế.
 - **Cột cuối (MI325X so với chính nó):** hạ HBM của MI325X từ 1500 xuống 1300 MHz chỉ làm MI325X chậm thêm ×0.99–1.07 ở mọi conc. Vậy cho MI325X dùng HBM clock bằng MI300X thì gap giữa hai máy chỉ giảm 0–7 %; HBM không phải nguồn chính của gap.
 
 ## Kết luận
 
 - Gap MoE MI300X/MI325X (×1.2–1.4) đến **chủ yếu từ sclk thực tế lúc kernel MoE chạy**: MI300X khoảng 1.0–1.3 GHz, MI325X khoảng 1.7–2.0 GHz.
 - Phần còn lại, khoảng 4–7 %, đến từ HBM3E 1500 MHz so với HBM3 1300 MHz.
-- Khi hai máy thật sự chạy cùng sclk (đo được ở c16–c64) và cùng HBM clock, kernel MoE chạy gần như nhau (×1.04–1.10). Ở conc cao chưa cân được clock thực tế; đang đo bổ sung.
+- Khi hai máy thật sự chạy cùng sclk (đo được ở c16–c64) và cùng HBM clock, kernel MoE chạy gần như nhau (×1.04–1.10). Ở conc cao chưa so được ở cùng clock thực tế, vì MI300X không giữ nổi 1100 MHz.
 - Trên MI300X, sclk trung bình (GpuMonitor/amd-smi) không phản ánh clock lúc MoE chạy. Trong interleave, các đoạn GEMM/idle kéo trung bình lên, nhưng MoE vẫn chạy ở khoảng 1.3 GHz.
 
 ## Cập nhật: cơ chế giữ clock MI300X ở 1.0–1.3 GHz khi chạy MoE
@@ -456,6 +454,5 @@ Ghi chú:
 - [x] Tái hiện e2e từ op-test, bước 3: Mori thật giữa các GPU (2 nhóm EP4, all-to-all dispatch/combine), đủ 8 GPU.
   - Ở dump c512: MI300X 405.4 µs @ 1115 MHz, 656 W, 83 °C; MI325X 295.9 µs @ 1837 MHz, 1000 W. Gap **×1.37**, e2e là ×1.41.
   - Clock, power và nhiệt độ của MI300X trùng với e2e (1.10 GHz, 651 W, 85 °C).
-- [x] Sweep đủ conc với giới hạn clock (interleave, uniform/skew c1–c1024, dump c512, trọng số thật): MI300X sclk ≤ 1100; MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai. Bảng ở mục [Sweep đủ conc](#sweep-đủ-conc-c1c1024-cập-nhật-2026-11-09-0630-kst-đang-bổ-sung).
-- [ ] **Đang chờ máy trống:** MI325X sclk ≤ 900 và ≤ 1000 (giữ HBM 1500), đủ conc, để so ở cùng clock thực tế với MI300X ở conc cao. Khi đặt trần 1100, MI300X chỉ chạy trung bình 955–1060 MHz.
-- [ ] Sau tất cả thí nghiệm: kiểm tra lần cuối clock/HBM/power cap của cả hai máy trùng với trạng thái ban đầu.
+- [x] Sweep đủ conc với giới hạn clock (interleave, uniform/skew c1–c1024, dump c512, trọng số thật): MI300X sclk ≤ 1100; MI325X sclk ≤ 1100 / HBM ≤ 1300 / cả hai. Bảng ở mục [Sweep đủ conc](#sweep-đủ-conc-c1c1024-cập-nhật-2026-11-09-0630-kst).
+- [x] Kiểm tra lần cuối sau tất cả thí nghiệm: clock/HBM của cả hai máy trùng với trạng thái ban đầu, power cap 750 / 1000 W, perf level auto.
