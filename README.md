@@ -37,7 +37,7 @@ Các điểm chính:
 |---|---|---|---|
 | step | 48.86 ms | 36.74 ms | **×1.33** |
 | Σ thời gian kernel | 46.33 ms | 35.78 ms | ×1.29 |
-| GPU idle | 4.69 ms (9.6 %) | 2.76 ms (7.5 %) | ×1.70 |
+| GPU idle | 4.69 ms | 2.76 ms | ×1.70 |
 
 Phần chênh 12.1 ms của step gồm 84 % là kernel GPU chậm hơn, 16 % là GPU idle nhiều hơn (phía host/CPU).
 
