@@ -362,7 +362,7 @@ Ghi chú:
 
 **Cột "sclk thực (MHz) MI300X / MI325X":** sclk trung bình mỗi máy đo được trong 20 s, ở đúng cấu hình của cột gap ngay bên phải. Ví dụ "987 / 1062" nghĩa là MI300X chạy trung bình 987 MHz, MI325X 1062 MHz. Đây là trung bình cả step: các đoạn GEMM/idle kéo trung bình lên, nên clock lúc MoE chạy thấp hơn số này, rõ nhất trên MI300X.
 
-**interleave, uniform**
+<a name="sweep-interleave-uniform"></a>**interleave, uniform**
 
 | conc | m_toks | sclk thực gốc (MHz) MI300X / MI325X | gap gốc | sclk thực trần 1100 (MHz) MI300X / MI325X | gap cùng trần sclk 1100 | sclk thực trần 1100 + HBM 1300 (MHz) MI300X / MI325X | gap cùng trần sclk 1100 + HBM 1300 | MI325X HBM≤1300 / MI325X gốc (cùng máy, không phải gap) |
 |---|---|---|---|---|---|---|---|---|
